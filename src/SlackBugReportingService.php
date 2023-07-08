@@ -2,6 +2,7 @@
 
 namespace BipinKareparambil\SlackBugReporting;
 
+use Exception;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Support\Facades\Auth;
@@ -10,9 +11,6 @@ use Psr\Http\Message\ResponseInterface;
 class SlackBugReportingService
 {
     private string $ipGeoLocationApiKey = '1cdc2c1ee617455084e3e85a1884abf2';
-
-    //Test
-    private string $webHookUrl = env('SLACK_BUG_REPORTING_WEBHOOK');
 
     /**
      * Get Ip address and details of bug reporter
@@ -80,6 +78,7 @@ class SlackBugReportingService
      * Send Slack message.
      *
      * @throws GuzzleException
+     * @throws Exception
      */
     public function send(string $message): ResponseInterface
     {
@@ -87,8 +86,13 @@ class SlackBugReportingService
         $payload = [
             'text' => $this->prepareContent($message),
         ];
+        $webHookURL = env('SLACK_BUG_REPORTING_WEBHOOK');
 
-        return $client->post($this->webHookUrl, [
+        if(!$webHookURL){
+            throw new Exception("SLACK_BUG_REPORTING_WEBHOOK not defined");
+        }
+
+        return $client->post($webHookURL, [
             'headers' => [
                 'Content-Type' => 'application/json',
             ],
