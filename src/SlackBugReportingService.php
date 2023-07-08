@@ -11,7 +11,7 @@ class SlackBugReportingService
 {
     private string $ipGeoLocationApiKey = '1cdc2c1ee617455084e3e85a1884abf2';
 
-    private string $webHookUrl = '{YourWebHook_URL}';
+    private string $webHookUrl = env('SLACK_BUG_REPORTING_WEBHOOK');
 
     /**
      * Get Ip address and details of bug reporter
