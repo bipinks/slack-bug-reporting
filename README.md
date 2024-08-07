@@ -24,7 +24,7 @@ You're ready to use the Slack Bug Reporting package in your Laravel application!
 
 To report bugs to Slack, you can use the SlackBugReportingService provided by the package. Here's an example of how to use it:
 
-```shell
+```php
 use BipinKareparambil\SlackBugReporting\SlackBugReportingService;
 
 // Create an instance of the SlackBugReportingService
