@@ -1,0 +1,13 @@
+<phpunit bootstrap="vendor/autoload.php"
+         colors="true"
+         stopOnFailure="false">
+    <testsuites>
+        <testsuite name="Unit Tests">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <env name="IP_GEOLOCATION_API_KEY" value="test_api_key"/>
+        <env name="SLACK_BUG_REPORTING_WEBHOOK" value="https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"/>
+    </php>
+</phpunit>

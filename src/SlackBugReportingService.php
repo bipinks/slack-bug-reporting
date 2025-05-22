@@ -4,27 +4,67 @@ namespace BipinKareparambil\SlackBugReporting;
 
 use Exception;
 use GuzzleHttp\Client;
+use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
-use Illuminate\Support\Facades\Auth;
 use Psr\Http\Message\ResponseInterface;
 
 class SlackBugReportingService
 {
-    private string $ipGeoLocationApiKey = '1cdc2c1ee617455084e3e85a1884abf2';
+    private ClientInterface $client;
+    private ?string $ipGeoLocationApiKey;
+
+    public function __construct(?ClientInterface $client = null, ?string $ipGeoLocationApiKey = null)
+    {
+        $this->client = $client ?: new Client();
+        $this->ipGeoLocationApiKey = $ipGeoLocationApiKey ?: getenv('IP_GEOLOCATION_API_KEY') ?: null;
+    }
 
     /**
      * Get Ip address and details of bug reporter
      * http://checkip.dyndns.org/ is used because some isp never expose their public ip,
      * instead they masked with a private ip which is incompatible for our use.
      */
-    private function getIPData(): mixed
+    private function getIPData(): ?array
     {
-        $ip = file_get_contents('http://checkip.dyndns.org/');
-        preg_match('/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/', $ip, $matches);
-        $ip = $matches[0];
-        $url = "https://api.ipgeolocation.io/ipgeo?apiKey=$this->ipGeoLocationApiKey&ip=".$ip;
+        $ip = null;
 
-        return json_decode(file_get_contents($url), true);
+        if (!$this->ipGeoLocationApiKey) {
+            // Log or handle missing API key scenario
+            return null;
+        }
+
+        try {
+            $response = $this->client->get('http://checkip.dyndns.org/');
+            $ipBody = (string) $response->getBody();
+            if (preg_match('/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/', $ipBody, $matches)) {
+                $ip = $matches[0];
+            } else {
+                // Log or handle IP not found in response
+                return null;
+            }
+        } catch (GuzzleException $e) {
+            // Log or handle Guzzle exception
+            return null;
+        } catch (Exception $e) {
+            // Log or handle other exceptions
+            return null;
+        }
+
+        if (!$ip) {
+            return null;
+        }
+
+        try {
+            $url = "https://api.ipgeolocation.io/ipgeo?apiKey={$this->ipGeoLocationApiKey}&ip=".$ip;
+            $response = $this->client->get($url);
+            return json_decode((string) $response->getBody(), true);
+        } catch (GuzzleException $e) {
+            // Log or handle Guzzle exception
+            return null;
+        } catch (Exception $e) {
+            // Log or handle other exceptions
+            return null;
+        }
     }
 
     /**
@@ -33,18 +73,19 @@ class SlackBugReportingService
     private function prepareContent(string $message): string
     {
         $messageObj = json_decode($message);
-        $user = optional(Auth::user())->username;
-        if (empty($user)) {
-            $user = 'SYSTEM';
-        }
+        // Simplified user fetching, removing Laravel's optional() and Auth
+        $user = 'SYSTEM'; // Default to SYSTEM, can be enhanced later if needed
         $msg = '*Reported By*: '.$user;
 
         $ipInfo = $this->getIPData();
-        $ip = $ipInfo['ip'];
-        $country = $ipInfo['country_name'];
-        $city = $ipInfo['city'];
-
-        $msg .= "\n*IP Address*: `".$ip." [$country - $city]`";
+        if ($ipInfo !== null && isset($ipInfo['ip'], $ipInfo['country_name'], $ipInfo['city'])) {
+            $ip = $ipInfo['ip'];
+            $country = $ipInfo['country_name'];
+            $city = $ipInfo['city'];
+            $msg .= "\n*IP Address*: `".$ip." [$country - $city]`";
+        } else {
+            $msg .= "\n*IP Address*: `Unable to fetch IP information`";
+        }
 
         $fields = [
             ['request_url', 'API URL'],
@@ -82,17 +123,16 @@ class SlackBugReportingService
      */
     public function send(string $message): ResponseInterface
     {
-        $client = new Client();
         $payload = [
             'text' => $this->prepareContent($message),
         ];
-        $webHookURL = env('SLACK_BUG_REPORTING_WEBHOOK');
+        $webHookURL = getenv('SLACK_BUG_REPORTING_WEBHOOK');
 
         if(!$webHookURL){
             throw new Exception("SLACK_BUG_REPORTING_WEBHOOK not defined");
         }
 
-        return $client->post($webHookURL, [
+        return $this->client->post($webHookURL, [
             'headers' => [
                 'Content-Type' => 'application/json',
             ],
